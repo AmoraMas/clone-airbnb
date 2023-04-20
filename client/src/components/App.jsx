@@ -35,7 +35,7 @@ function App() {
     try {
       const res = await fetch ('http://localhost:5172/users');
       const text = await res.text();
-      //console.log(text);
+      //console.log('Users', text);
       const data = JSON.parse(text);
       setSiteUsers(data);
     } catch (err) {
@@ -51,7 +51,7 @@ function App() {
     try {
       const res = await fetch ('http://localhost:5172/properties');
       const text = await res.text();
-      //console.log(text);
+      //console.log('Properties', text);
       const data = JSON.parse(text);
       setProperty(data);
     } catch (err) {

@@ -1,0 +1,81 @@
+version: '3.8'
+services:
+  airbnb-db:
+    container_name: airbnb_postgres_container
+    image: postgres
+    restart: always
+    environment: 
+      DATABASE_HOST: 127.0.0.1
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: housing
+      PGDATA: /var/lib/postgresql/data
+    ports:
+     - '5432:5432'
+    healthcheck:
+        test: ["CMD-SHELL", "pg_isready -U postgres"]
+        interval: 5s
+        timeout: 5s
+        retries: 5
+    volumes:
+      - pgdatasource:/var/lib/postgresql/data
+
+  pgadmin:
+    container_name: airbnb_pgadmin4_container
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: superdev@dev.com
+      PGADMIN_DEFAULT_PASSWORD: password
+      PGADMIN_LISTEN_PORT: 80
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      - airbnb-db
+
+
+  airbnb-api:
+    container_name: airbnb_api_container
+    build: ./server/
+    stdin_open: true
+    tty: true
+    depends_on:
+      airbnb-db:
+        condition: service_healthy
+    ports:
+      - "5172:5172"
+    environment: 
+      NODE_ENV: development
+      PORT: 5172
+      POSTGRES_HOST: airbnb-db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: housing
+
+    volumes:
+      - ./server/:/app:Z
+
+    command: npm run dev
+
+  airbnb-client:
+    container_name: airbnb_react_container
+    build: ./client/
+    depends_on:
+      - 'airbnb-api'
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./client/:/app:Z
+    
+    command: npm start
+
+volumes:
+  pgdatasource:
+  pgadmin-data:
+
+networks:
+  default:
