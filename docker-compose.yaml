@@ -1,10 +1,18 @@
-version: '3.8'
+# @format
+
+version: "3.8"
+networks:
+  airbnb:
+    driver: bridge
+
 services:
   airbnb-db:
     container_name: airbnb_postgres_container
     image: postgres
     restart: always
-    environment: 
+    networks:
+      - airbnb
+    environment:
       DATABASE_HOST: 127.0.0.1
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -12,19 +20,32 @@ services:
       POSTGRES_DB: housing
       PGDATA: /var/lib/postgresql/data
     ports:
-     - '5432:5432'
+      - "5432:5432"
     healthcheck:
-        test: ["CMD-SHELL", "pg_isready -U postgres"]
-        interval: 5s
-        timeout: 5s
-        retries: 5
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     volumes:
       - pgdatasource:/var/lib/postgresql/data
+
+  redis:
+    container_name: airbnb_redis_container
+    image: "redis:latest"
+    restart: always
+    networks:
+      - airbnb
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
 
   pgadmin:
     container_name: airbnb_pgadmin4_container
     image: dpage/pgadmin4
     restart: always
+    networks:
+      - airbnb
     environment:
       PGADMIN_DEFAULT_EMAIL: superdev@dev.com
       PGADMIN_DEFAULT_PASSWORD: password
@@ -36,7 +57,6 @@ services:
     depends_on:
       - airbnb-db
 
-
   airbnb-api:
     container_name: airbnb_api_container
     build: ./server/
@@ -47,7 +67,9 @@ services:
         condition: service_healthy
     ports:
       - "5172:5172"
-    environment: 
+    networks:
+      - airbnb
+    environment:
       NODE_ENV: development
       PORT: 5172
       POSTGRES_HOST: airbnb-db
@@ -65,17 +87,17 @@ services:
     container_name: airbnb_react_container
     build: ./client/
     depends_on:
-      - 'airbnb-api'
+      - "airbnb-api"
+    networks:
+      - airbnb
     ports:
-      - '3000:3000'
+      - "3000:3000"
     volumes:
       - ./client/:/app:Z
-    
+
     command: npm start
 
 volumes:
   pgdatasource:
   pgadmin-data:
-
-networks:
-  default:
+  redis-data:
