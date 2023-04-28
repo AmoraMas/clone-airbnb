@@ -33,100 +33,93 @@ server.listen(port, function () {
   console.log(`Server is listening on port ${port}.`);
 });
 
-//
-// here is where all of your requests with routes go
-//
-
-// test request to verify this file is working
-server.get("/test", (req, res) => {
-  console.log("Responded to test request.");
-  res.json("You have reached the server routing page");
-});
-
-server.get("/language", (req, res) => {
-  const result = sql.query(`SELECT * FROM language`, (err, result) => {
-    res.json(result.rows);
-  });
-});
-
-server.get("/currency", (req, res) => {
-  const result = sql.query(`SELECT * FROM currency;`, (err, result) => {
-    res.json(result.rows);
-  });
-});
-
-server.get("/amenities", (req, res) => {
-  const result = sql.query(`SELECT * FROM amenities`, (err, result) => {
-    res.json(result.rows);
-  });
-});
-
-server.get("/users", (req, res) => {
-  const result = sql.query(`SELECT * FROM users`, (err, result) => {
-    res.json(result.rows);
-  });
-});
-
-server.get("/properties", (req, res) => {
-  const result = sql.query(`SELECT * FROM properties`, (err, result) => {
-    res.json(result.rows);
-  });
-});
-
-server.get("/user_properties", (req, res) => {
-  const result = sql.query(`SELECT * FROM user_properties`, (err, result) => {
-    res.json(result.rows);
-  });
-});
-
-server.get("/propertyImages", (req, res) => {
-  const result = sql.query(`SELECT * FROM propertyImages`, (err, result) => {
-    res.json(result.rows);
-  });
-});
-
-server.get("/reviews", (req, res) => {
-  const result = sql.query(`SELECT * FROM reviews`, (err, result) => {
-    res.json(result.rows);
-  });
-});
-
-server.get("/properties/:id/reviews", async (req, res, next) => {
-  const { id } = req.params;
-  let results = redisClient.get(`reviewsbyid${id}`, async (error, result) => {
+// Function to run in order to return data if it exists in Redis
+// Or get data from DB, save it to Redis, and return the DB data
+async function getData(queryString, redisString) {
+  let results = redisClient.get(redisString, async (error, result) => {
     if (error) {
       console.error(error);
     }
   });
   results = await results;
   if (results != null) {
-    res.json(JSON.parse(results));
+    return JSON.parse(results);
   } else {
-    const result = await new Promise((resolve, reject) =>
-      sql.query(
-        `
-        SELECT r.*, u.avatar, u.firstname, u.lastname
-        FROM reviews r
-        JOIN users u ON r.userid = u.userid
-        WHERE r.propertyid = ${id}
-        `,
-        (err, data) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(data.rows);
-          }
+    results = await new Promise((resolve, reject) =>
+      sql.query(queryString, (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result.rows);
         }
-      )
+      })
     );
-    let response = await result;
-    redisClient.setEx(
-      `reviewsbyid${id}`,
-      redisExpiration,
-      JSON.stringify(response)
-    );
-    res.json(response);
+    let response = await results;
+    redisClient.setEx(redisString, redisExpiration, JSON.stringify(response));
+    return results;
   }
+}
+
+//
+// here is where all of your requests with routes go
+//
+
+server.get("/language", async (req, res) => {
+  const response = await getData(`SELECT * FROM language`, "language");
+  res.json(response);
+});
+
+server.get("/currency", async (req, res) => {
+  const response = await getData(`SELECT * FROM currency`, "currency");
+  res.json(response);
+});
+
+server.get("/amenities", async (req, res) => {
+  const response = await getData(`SELECT * FROM amenities`, "amenities");
+  res.json(response);
+});
+
+server.get("/users", async (req, res) => {
+  const response = await getData(`SELECT * FROM users`, "users");
+  res.json(response);
+});
+
+server.get("/properties", async (req, res) => {
+  const response = await getData(`SELECT * FROM properties`, "properties");
+  res.json(response);
+});
+
+server.get("/user_properties", async (req, res) => {
+  const response = await getData(
+    `SELECT * FROM user_properties`,
+    "user_properties"
+  );
+  res.json(response);
+});
+
+server.get("/propertyImages", async (req, res) => {
+  const response = await getData(
+    `SELECT * FROM propertyimages`,
+    "propertyimages"
+  );
+  res.json(response);
+});
+
+server.get("/reviews", async (req, res) => {
+  const response = await getData(`SELECT * FROM reviews`, "reviews");
+  res.json(response);
+});
+
+server.get("/properties/:id/reviews", async (req, res, next) => {
+  const { id } = req.params;
+  const query = `
+  SELECT r.*, u.avatar, u.firstname, u.lastname
+  FROM reviews r
+  JOIN users u ON r.userid = u.userid
+  WHERE r.propertyid = ${id}
+  `;
+  const response = await getData(query, `reviewsbyid${id}`);
+  res.json(response);
 });
 
 server.post("/reviews", function (req, res, next) {
